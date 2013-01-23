@@ -62,8 +62,8 @@ changeIp()
 {
     arrnum=${#domainGroup[@]}
     for (( i=0;i<arrnum;++i));do
-        sub_domain=${domainGroup[$i]:0:1}
-        master_domain=${domainGroup[$i]:1:1}
+        sub_domain=`echo ${domainGroup[$i]} | awk '{print $1}'`
+        master_domain=`echo ${domainGroup[$i]} | awk '{print $2}'`
 
         domainListInfo=$(getDomainList)
         domainid=$(getDomainDataByKey "$domainListInfo" 'id')
