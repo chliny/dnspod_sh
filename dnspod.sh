@@ -11,6 +11,7 @@ format="json"
 lang="en"
 apiurl="https://dnsapi.cn/"
 commonPost="login_email=$email&login_password=$password&format=$format&lang=$lang"
+newip=$1
 # 域名列表，格式"子域名/主机记录 主域名"
 domainGroup[0]="subdomain1 masterdomain1.com"
 domainGroup[1]="subdomain2 masterdomain2.com"
@@ -18,7 +19,12 @@ domainGroup[1]="subdomain2 masterdomain2.com"
 # 获取本地ip
 getNewIp()
 {
-    ifconfig eth0 | grep inet | grep -v inet6 | grep -v 127.0.0.1 | awk '{print $2}'
+    if [ -z $newip ];then
+       newip=`ifconfig eth0 | grep inet | grep -v inet6 | grep -v 127.0.0.1 | awk '{print $2}'`
+    elif [ -z $newip ];then
+       newip=`ifconfig wlan0 | grep inet | grep -v inet6 | awk '{print $2}'`
+    fi
+    echo $newip
 }
 
 # 通过key得到找到JSONdomain字段中key对应的值
@@ -27,9 +33,9 @@ getNewIp()
 getDomainDataByKey()
 {
     if [ "$2" == "id" ];then
-        echo $1 | grep -E -o "\"domain[^}]*}" | grep -E -o "\"$2[^\,]*\," | grep -E -o ":[^\,]*" | cut -c 2-
+        echo $1 | grep -E -o "\"$2[^\,]*\," | grep -E -o ":[^\,]*" | cut -c 2-
     else 
-        echo $1 | grep -E -o "\"domain[^}]*}" | grep -E -o "\"$2[^\,]*\," | grep -E -o ":\"[^\"]*" | cut -c 3-
+        echo $1 | grep -E -o "\"$2[^\,]*\," | grep -E -o ":\"[^\"]*" | cut -c 3-
     fi
 }
 
@@ -48,13 +54,19 @@ getRecordDataByKey()
 getRecordList()
 {
     allRecord=`curl -d $commonPost"&domain_id=$1&offset=0&length=20&sub_domain=$2" $apiurl"Record.List"`
-    echo $allRecord | grep -E -o "records.*" | grep -E -o "\{[^{}]*\}" | grep -E -v "dnspod\.net"
+    echo $allRecord | grep -E -o "records.*" | grep -E -o "\{[^{}]*\}" | grep -E "A" | grep -E -v "dnspod\.net"
 }
 
 # 获取域名列表
 getDomainList()
 {
 	curl -d $commonPost"&type=mine&offset=0&length=10"  $apiurl"Domain.List"
+}
+
+#根据域名$2(主域名)获取域名信息
+getDomainInfo()
+{
+    echo $1 | grep -E -o "\"domains\"\:\[.*?\]" |  grep -E -o "\{[^}]*\}" | grep -E "$2"
 }
 
 # 修改记录
@@ -66,7 +78,8 @@ changeIp()
         master_domain=`echo ${domainGroup[$i]} | awk '{print $2}'`
 
         domainListInfo=$(getDomainList)
-        domainid=$(getDomainDataByKey "$domainListInfo" 'id')
+        domainInfo=$(getDomainInfo "$domainListInfo" "$master_domain")
+        domainid=$(getDomainDataByKey "$domainInfo" 'id')
         recordList=$(getRecordList $domainid "$sub_domain")
 
         oldip=$(getRecordDataByKey "$recordList" 'value')
